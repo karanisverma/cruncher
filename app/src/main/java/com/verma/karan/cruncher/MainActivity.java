@@ -74,7 +74,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 try {
-                      getNetworkStats();
+                      data = getNetworkStats();
                       storeIt(data,"Network_stats.txt",directory);
                       data = getSms();
                       storeIt(data,"SMS_Log.txt",directory);
@@ -231,10 +231,20 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
-    public void getNetworkStats() {
-        long ts = TrafficStats.getTotalRxBytes();
-        Log.v("TOTAL BYTE RECEIVED => ", String.valueOf(ts));
-
+    public String getNetworkStats() throws JSONException {
+        JSONObject network_json = new JSONObject();
+        long total_bytes_r = TrafficStats.getTotalRxBytes();
+        long total_bytes_t = TrafficStats.getTotalTxBytes();
+        long total_bytes = TrafficStats.getTotalRxBytes();
+        long total_mobile_bytes_r = TrafficStats.getMobileRxBytes();
+        long total_mobile_bytes_t = TrafficStats.getMobileTxBytes();
+//        Log.v("TOTAL BYTE RECEIVED => ", String.valueOf(ts));
+        network_json.put("total_bytes_r",String.valueOf(total_bytes_r));
+        network_json.put("total_bytes_t",String.valueOf(total_bytes_t));
+        network_json.put("total_mobile_bytes_r",String.valueOf(total_mobile_bytes_r));
+        network_json.put("total_mobile_bytes_t",String.valueOf(total_mobile_bytes_t));
+        network_json.put("total_bytes",String.valueOf(total_bytes));
+        return network_json.toString();
     }
 
 
