@@ -21,13 +21,15 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.appindexing.Action;
 import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.api.GoogleApiClient;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -39,12 +41,15 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+
 public class MainActivity extends AppCompatActivity {
     UsageStatsManager mUsageStatsManager;
     Button mOpenUsageSettingButton;
     Button mCrunchingButton;
     long now = System.currentTimeMillis();
     TextView mText;
+    String data = "";
+    List<String> data3 = new ArrayList<String>();
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
      * See https://g.co/AppIndexing/AndroidStudio for more information.
@@ -60,16 +65,31 @@ public class MainActivity extends AppCompatActivity {
         mText = (TextView) this.findViewById(R.id.textView);
         mUsageStatsManager = (UsageStatsManager) this
                 .getSystemService("usagestats");
+        File sdCard = Environment.getExternalStorageDirectory();
+        final File directory = new File (sdCard.getAbsolutePath() + "/Cruncher1");
+        directory.mkdirs();
         checkPermission();
         mCrunchingButton.setOnClickListener(new View.OnClickListener() {
+
             @Override
             public void onClick(View v) {
-                mCrunchingButton.setText("Crunching...");
-                getNetworkStats();
-                getSms();
-                getUseageStats();
-                getCallDetails();
-                getBrowserHist();
+                try {
+                      getNetworkStats();
+                      storeIt(data,"Network_stats.txt",directory);
+                      data = getSms();
+                      storeIt(data,"SMS_Log.txt",directory);
+//                    data = getCallDetails();
+//                    storeIt(data,"callLog.txt",directory);
+//                    data= getUseageStats();
+//                    storeIt(data,"appUseageStats.txt",directory);
+//                    data = getBrowserHist();
+//                    storeIt(data,"History.txt",directory);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
                 mCrunchingButton.setText("Done!!!");
                 mText.setVisibility(View.VISIBLE);
                 mText.setText("Files have been stored in SD card under /Myfiles Directory");
@@ -85,23 +105,45 @@ public class MainActivity extends AppCompatActivity {
         checkPermission();
     }
 
-    private void getUseageStats(){
+    private String getUseageStats() throws JSONException {
 
         StatsUsageInterval statsUsageInterval = StatsUsageInterval.YEARLY;
         if (statsUsageInterval != null) {
-            List<UsageStats> usageStatsList =
-                    getUsageStatistics(statsUsageInterval.mInterval);
+
             try {
-                updateAppsList(usageStatsList);
-            } catch (IOException e) {
+                String usageStatsList =
+                        getUsageStatistics(statsUsageInterval.mInterval);
+                return usageStatsList;
+            } catch (JSONException e) {
                 e.printStackTrace();
             }
 
         }
 
+        return null;
     }
-    private void getCallDetails() {
+
+    //Function to store json into external storage.
+    private  void storeIt(String data,String filename,File directory) throws IOException {
+
+
+        //Now create the file in the above directory and write the contents into it
+        File file = new File(directory, filename);
+        FileOutputStream fOut = new FileOutputStream(file);
+        OutputStreamWriter osw = new OutputStreamWriter(fOut);
+        osw.write(String.valueOf(this.data));
+        osw.flush();
+        try {
+            osw.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+    private String getCallDetails() throws JSONException {
         StringBuffer sb = new StringBuffer();
+
+        JSONObject call_json = new JSONObject();
         Cursor managedCursor = this.getContentResolver().query(CallLog.Calls.CONTENT_URI, null, null, null, null);
         int number = managedCursor.getColumnIndex(CallLog.Calls.NUMBER);
         int type = managedCursor.getColumnIndex(CallLog.Calls.TYPE);
@@ -109,6 +151,7 @@ public class MainActivity extends AppCompatActivity {
         int duration = managedCursor.getColumnIndex(CallLog.Calls.DURATION);
         sb.append("Call Log :");
         while (managedCursor.moveToNext()) {
+            JSONObject call_details_jsonObj = new JSONObject();
             String phNumber = managedCursor.getString(number);
             String callType = managedCursor.getString(type);
             String callDate = managedCursor.getString(date);
@@ -127,13 +170,14 @@ public class MainActivity extends AppCompatActivity {
                     dir = "MISSED";
                     break;
             }
-            Log.d("Number => ", phNumber);
-            Log.d("TYPE => ", dir);
-            Log.d("DATE =>", callDate);
-            Log.d("Durstion =>", callDuration);
-            sb.append("\nPhone Number:--- " + phNumber + " \nCall Type:--- " + dir + " \nCall Date:--- " + callDayTime + " \nCall duration in sec :--- " + callDuration);
-            sb.append("\n----------------------------------");
+            call_details_jsonObj.put("Number", phNumber);
+            call_details_jsonObj.put("Type",dir);
+            call_details_jsonObj.put("Date", callDayTime);
+            call_details_jsonObj.put("Duration",callDuration);
+            call_json.put(callDate,call_details_jsonObj);
         }
+        ;
+        return call_json.toString();
 
 
     }
@@ -159,22 +203,32 @@ public class MainActivity extends AppCompatActivity {
             mOpenUsageSettingButton.setVisibility(View.GONE);
         }
     }
-    public void getSms() {
+    public String getSms() throws JSONException {
         Uri uriSms = Uri.parse("content://sms/inbox");
+        JSONObject sms_json = new JSONObject();
         Cursor cursor = this.getContentResolver().query(uriSms, null, null, null, null);
-
+        int i =0;
         if (cursor.moveToFirst()) { // must check the result to prevent exception
-            do {
+            do { i =i+1;
                 String msgData = "";
+                JSONObject text_json = new JSONObject();
                 for (int idx = 0; idx < cursor.getColumnCount(); idx++) {
+
+                    text_json.put(cursor.getColumnName(idx),cursor.getString(idx));
+
                     msgData += " " + cursor.getColumnName(idx) + ":" + cursor.getString(idx);
-                    Log.v("SMS => ", msgData);
+//                    Log.v("SMS => ", msgData);
                 }
+                sms_json.put(String.valueOf(i),text_json);
                 // use msgData
             } while (cursor.moveToNext());
+            String test = sms_json.toString();
+            Log.d("Sms json =>", test);
+            return sms_json.toString();
         } else {
             // empty box, no SMS
         }
+        return null;
     }
 
     public void getNetworkStats() {
@@ -184,40 +238,58 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    public void getBrowserHist() {
+    public String getBrowserHist() throws JSONException {
+        JSONObject history_json = new JSONObject();
         Uri uriCustom = Uri.parse("content://com.android.chrome.browser/bookmarks");
         Cursor mCur = this.getContentResolver().query(uriCustom,
                 Browser.HISTORY_PROJECTION, null, null, null);
         mCur.moveToFirst();
         if (mCur.moveToFirst() && mCur.getCount() > 0) {
             while (mCur.isAfterLast() == false) {
-                Log.v("TITLE => ", mCur
-                        .getString(Browser.HISTORY_PROJECTION_TITLE_INDEX));
-                Log.v("URL => ", mCur
-                        .getString(Browser.HISTORY_PROJECTION_URL_INDEX));
-                Log.v("DATE => ", mCur
-                        .getString(Browser.HISTORY_PROJECTION_DATE_INDEX));
-                Log.v("VISITS => ", mCur
-                        .getString(Browser.HISTORY_PROJECTION_VISITS_INDEX));
+                JSONObject website_details_jsonObj = new JSONObject();
+
+                website_details_jsonObj.put("Title",mCur.getString(Browser.HISTORY_PROJECTION_TITLE_INDEX));
+                website_details_jsonObj.put("Url",mCur.getString(Browser.HISTORY_PROJECTION_URL_INDEX));
+                website_details_jsonObj.put("Date",mCur.getString(Browser.HISTORY_PROJECTION_DATE_INDEX));
+                website_details_jsonObj.put("Visit",mCur.getString(Browser.HISTORY_PROJECTION_VISITS_INDEX));
+                history_json.put(String.valueOf(mCur.getString(Browser.HISTORY_PROJECTION_DATE_INDEX)),website_details_jsonObj);
+
+//                Log.v("TITLE => ", mCur
+//                        .getString(Browser.HISTORY_PROJECTION_TITLE_INDEX));
+//                Log.v("URL => ", mCur
+//                        .getString(Browser.HISTORY_PROJECTION_URL_INDEX));
+//                Log.v("DATE => ", mCur
+//                        .getString(Browser.HISTORY_PROJECTION_DATE_INDEX));
+//                Log.v("VISITS => ", mCur
+//                        .getString(Browser.HISTORY_PROJECTION_VISITS_INDEX));
+
                 mCur.moveToNext();
             }
         }
+
+
+        return history_json.toString();
     }
 
 
-    public List<UsageStats> getUsageStatistics(int intervalType) {
-        List<String> nameNtime = new ArrayList<String>();
+    public String getUsageStatistics(int intervalType) throws JSONException {
+//        List<String> nameNtime = new ArrayList<String>();
+        String val1 ="";
         DateFormat mDateFormat = new SimpleDateFormat();
+
+
+        JSONObject App_useage_json = new JSONObject();
+
+
         long now = System.currentTimeMillis();
 //         Get the app statistics since epoch till current date.
         List<UsageStats> queryUsageStats = mUsageStatsManager
                 .queryUsageStats(intervalType, 0, now);
         Log.d("SIZE => ", String.valueOf(queryUsageStats.size()));
         for (int i = 0; i < queryUsageStats.size(); i++) {
-
+            JSONObject App_deatils_json = new JSONObject();
             CustomUsageStats cUsageStats = new CustomUsageStats();
-            cUsageStats.usageStats = queryUsageStats.get(i);
-            int val = 0;
+            cUsageStats.usageStats = queryUsageStats.get(i);;
             PackageManager packageManager = this.getApplicationContext().getPackageManager();
             String appName = "";
             try {
@@ -225,19 +297,32 @@ public class MainActivity extends AppCompatActivity {
             } catch (PackageManager.NameNotFoundException e) {
                 appName = "";
             }
+            String f_time = String.valueOf(cUsageStats.usageStats.getTotalTimeInForeground() / 60000);
+            String first_used =  String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getFirstTimeStamp())));
+            String last_used =  String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getLastTimeUsed())));
 
-            Log.d("PACKAGE NAME => ", appName);
-            Log.d("TOTAL TIME => ", String.valueOf(cUsageStats.usageStats.getTotalTimeInForeground() / 60000));
+            App_deatils_json.put("Name",appName);
+            App_deatils_json.put("Foreground",f_time);
+            App_deatils_json.put("Frist_time",first_used);
+            App_deatils_json.put("Last_time",last_used );
+            if (appName!=""){
+            App_useage_json.put(last_used,App_deatils_json);}
+//            Log.d("PACKAGE NAME => ", appName);
+//            Log.d("TOTAL TIME => ", String.valueOf(cUsageStats.usageStats.getTotalTimeInForeground() / 60000));
+            val1 = App_useage_json.toString();
+//            Log.d("#Useage_json => ",val1);
+
+
 //            Log.d("TYPE => ",);
 //            Log.d("CONTENT => ",String.valueOf(cUsageStats.usageStats.describeContents()));
 //            Log.d("FIRST_TIME STAMP => ",String.valueOf(cUsageStats.usageStats.getFirstTimeStamp()));
-            Log.d("LAST_TIME STAMP => ", String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getLastTimeStamp()))));
-            Log.d("LAST_TIME USED => ", String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getLastTimeUsed()))));
+//            Log.d("LAST_TIME STAMP => ", String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getLastTimeStamp()))));
+//            Log.d("LAST_TIME USED => ", String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getLastTimeUsed()))));
 //            Log.d("------------------",String.valueOf(val));
-            nameNtime.add(String.valueOf(cUsageStats.usageStats.getPackageName()) + " -> " + String.valueOf(cUsageStats.usageStats.getTotalTimeInForeground() / 60000));
+//            nameNtime.add(String.valueOf(cUsageStats.usageStats.getPackageName()) + " -> " + String.valueOf(cUsageStats.usageStats.getTotalTimeInForeground() / 60000));
         }
-// }
-        Log.d("List", String.valueOf(nameNtime));
+
+
         if (queryUsageStats.size() == 0) {
             Log.i("ERROR", "The user may not allow the access to apps usage. ");
             Toast.makeText(this,
@@ -254,53 +339,71 @@ public class MainActivity extends AppCompatActivity {
             mCrunchingButton.setVisibility(View.VISIBLE);
             mOpenUsageSettingButton.setVisibility(View.GONE);
         }
-        return queryUsageStats;
+        return val1;
     }
 
-    void updateAppsList(List<UsageStats> usageStatsList) throws IOException {
-        //writing stuff in mobile
-
-        File sdCard = Environment.getExternalStorageDirectory();
-        DateFormat mDateFormat = new SimpleDateFormat();
-        File directory = new File(sdCard.getAbsolutePath() + "/MyFiles");
-        directory.mkdirs();
-
-        //Now create the file in the above directory and write the contents into it
-        File file = new File(directory, "mysdfile.txt");
-        FileOutputStream fOut = new FileOutputStream(file);
-        OutputStreamWriter osw = new OutputStreamWriter(fOut);
-
-        List<CustomUsageStats> customUsageStatsList = new ArrayList<>();
-        List<String> app_names = new ArrayList<String>();
-        for (int i = 0; i < usageStatsList.size(); i++) {
-            CustomUsageStats customUsageStats = new CustomUsageStats();
-            customUsageStats.usageStats = usageStatsList.get(i);
-            try {
-                Drawable appIcon = this.getPackageManager()
-                        .getApplicationIcon(customUsageStats.usageStats.getPackageName());
-                customUsageStats.appIcon = appIcon;
-            } catch (PackageManager.NameNotFoundException e) {
-                Log.w("ERROR => ", String.format("App Icon is not found for %s",
-                        customUsageStats.usageStats.getPackageName()));
-                customUsageStats.appIcon = this
-                        .getDrawable(R.drawable.ic_default_app_launcher);
-            }
-            customUsageStatsList.add(customUsageStats);
-            customUsageStats.use_time = customUsageStats.usageStats.getTotalTimeInForeground() / 60000;
-
-            app_names.add(customUsageStats.usageStats.getPackageName() + " Total Time => " + customUsageStats.use_time + " First Time => " + mDateFormat.format(new Date(customUsageStats.usageStats.getFirstTimeStamp())));
-        }
-
-
-        osw.write(String.valueOf(app_names));
-        osw.flush();
-        try {
-            osw.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-    }
+//    List<String> updateAppsList(List<UsageStats> usageStatsList) throws IOException, JSONException {
+//        //writing stuff in mobile
+//
+//        File sdCard = Environment.getExternalStorageDirectory();
+//        DateFormat mDateFormat = new SimpleDateFormat();
+//        File directory = new File(sdCard.getAbsolutePath() + "/Cruncher");
+//        File file = new File(directory, "mysdfile.txt");
+//        FileOutputStream fOut = new FileOutputStream(file);
+//        OutputStreamWriter osw = new OutputStreamWriter(fOut);
+//
+//        //json stuff
+//        JSONObject App_deatils_json = new JSONObject();
+//        JSONObject appUseage_json = new JSONObject();
+//
+//
+//        List<CustomUsageStats> customUsageStatsList = new ArrayList<>();
+//        List<String> app_names = new ArrayList<String>();
+//        for (int i = 0; i < usageStatsList.size(); i++) {
+//            CustomUsageStats cUsageStats = new CustomUsageStats();
+//            cUsageStats.usageStats = usageStatsList.get(i);
+//            int val = 0;
+//            PackageManager packageManager = this.getApplicationContext().getPackageManager();
+//            String appName = "";
+//            try {
+//                appName = (String) packageManager.getApplicationLabel(packageManager.getApplicationInfo(cUsageStats.usageStats.getPackageName(), PackageManager.GET_META_DATA));
+//            } catch (PackageManager.NameNotFoundException e) {
+//                appName = "";
+//            }
+//            String f_time = String.valueOf(cUsageStats.usageStats.getTotalTimeInForeground() / 60000);
+//            String first_used =  String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getFirstTimeStamp())));
+//            String last_used =  String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getLastTimeUsed())));
+//
+//            App_deatils_json.put("Name",appName);
+//            App_deatils_json.put("Foreground",f_time);
+//            App_deatils_json.put("Frist_time",first_used);
+//            App_deatils_json.put("Last_time",last_used );
+//
+//            appUseage_json.put(String.valueOf(i),App_deatils_json);
+//
+////            Log.d("PACKAGE NAME => ", appName);
+////            Log.d("TOTAL TIME => ", String.valueOf(cUsageStats.usageStats.getTotalTimeInForeground() / 60000));
+////            Log.d("TYPE => ",);
+////            Log.d("CONTENT => ",String.valueOf(cUsageStats.usageStats.describeContents()));
+////            Log.d("FIRST_TIME STAMP => ",String.valueOf(cUsageStats.usageStats.getFirstTimeStamp()));
+////            Log.d("LAST_TIME STAMP => ", String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getLastTimeStamp()))));
+////            Log.d("LAST_TIME USED => ", String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getLastTimeUsed()))));
+////            Log.d("------------------",String.valueOf(val));
+//            app_names.add(String.valueOf(cUsageStats.usageStats.getPackageName()) + " -> " + String.valueOf(cUsageStats.usageStats.getTotalTimeInForeground() / 60000));
+//        }
+//        String val1 = appUseage_json.toString();
+//        Log.d("Useage_json => ",val1);
+//
+//        osw.write(String.valueOf(app_names));
+//        osw.flush();
+//        try {
+//            osw.close();
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//
+//        return app_names;
+//    }
 
     @Override
     public void onStart() {
