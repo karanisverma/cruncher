@@ -16,11 +16,18 @@ import android.provider.Settings;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
+
+import com.google.android.gms.appindexing.Action;
+import com.google.android.gms.appindexing.AppIndex;
+import com.google.android.gms.common.api.GoogleApiClient;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -35,76 +42,66 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity {
     UsageStatsManager mUsageStatsManager;
     Button mOpenUsageSettingButton;
+    Button mCrunchingButton;
+    long now = System.currentTimeMillis();
+    TextView mText;
+    /**
+     * ATTENTION: This was auto-generated to implement the App Indexing API.
+     * See https://g.co/AppIndexing/AndroidStudio for more information.
+     */
+    private GoogleApiClient client;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                        .setAction("Action", null).show();
-            }
-        });
+        mOpenUsageSettingButton = (Button) this.findViewById(R.id.button_open_usage_setting);
+        mCrunchingButton = (Button) this.findViewById(R.id.curnching_button);
+        mText = (TextView) this.findViewById(R.id.textView);
         mUsageStatsManager = (UsageStatsManager) this
                 .getSystemService("usagestats");
-//        getNetworkStats();
-//        getSms();
-//        getCallDetails();
-//        getBrowserHist();
+        checkPermission();
+        mCrunchingButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mCrunchingButton.setText("Crunching...");
+                getNetworkStats();
+                getSms();
+                getUseageStats();
+                getCallDetails();
+                getBrowserHist();
+                mCrunchingButton.setText("Done!!!");
+                mText.setVisibility(View.VISIBLE);
+                mText.setText("Files have been stored in SD card under /Myfiles Directory");
 
-        StatsUsageInterval statsUsageInterval = StatsUsageInterval.DAILY;
+            }
+        });
+
+        client = new GoogleApiClient.Builder(this).addApi(AppIndex.API).build();
+    }
+    @Override
+    public void onResume(){
+        super.onResume();
+        checkPermission();
+    }
+
+    private void getUseageStats(){
+
+        StatsUsageInterval statsUsageInterval = StatsUsageInterval.YEARLY;
         if (statsUsageInterval != null) {
             List<UsageStats> usageStatsList =
                     getUsageStatistics(statsUsageInterval.mInterval);
-//                    Collections.sort(usageStatsList, new LastTimeLaunchedComparatorDesc());
             try {
                 updateAppsList(usageStatsList);
             } catch (IOException e) {
                 e.printStackTrace();
             }
+
         }
 
-//    @Override
-//    public boolean onCreateOptionsMenu(Menu menu) {
-//        // Inflate the menu; this adds items to the action bar if it is present.
-//        getMenuInflater().inflate(R.menu.menu_main, menu);
-//        return true;
-//    }
-//
-//    @Override
-//    public boolean onOptionsItemSelected(MenuItem item) {
-//        // Handle action bar item clicks here. The action bar will
-//        // automatically handle clicks on the Home/Up button, so long
-//        // as you specify a parent activity in AndroidManifest.xml.
-//        int id = item.getItemId();
-//
-//        //noinspection SimplifiableIfStatement
-//        if (id == R.id.action_settings) {
-//            return true;
-//        }
-//
-//        return super.onOptionsItemSelected(item);
-//    }
-
-
-
+    }
     private void getCallDetails() {
         StringBuffer sb = new StringBuffer();
-//        if (ActivityCompat.checkSelfPermission(getContext(), Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
-//            // TODO: Consider calling
-//            //    ActivityCompat#requestPermissions
-//            // here to request the missing permissions, and then overriding
-//            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-//            //                                          int[] grantResults)
-//            // to handle the case where the user grants the permission. See the documentation
-//            // for ActivityCompat#requestPermissions for more details.
-//            return;
-//        }
         Cursor managedCursor = this.getContentResolver().query(CallLog.Calls.CONTENT_URI, null, null, null, null);
         int number = managedCursor.getColumnIndex(CallLog.Calls.NUMBER);
         int type = managedCursor.getColumnIndex(CallLog.Calls.TYPE);
@@ -133,23 +130,43 @@ public class MainActivity extends AppCompatActivity {
             Log.d("Number => ", phNumber);
             Log.d("TYPE => ", dir);
             Log.d("DATE =>", callDate);
-            Log.d("Durstion =>",callDuration);
+            Log.d("Durstion =>", callDuration);
             sb.append("\nPhone Number:--- " + phNumber + " \nCall Type:--- " + dir + " \nCall Date:--- " + callDayTime + " \nCall duration in sec :--- " + callDuration);
             sb.append("\n----------------------------------");
-        } //managedCursor.close(); textView.setText(sb); }
+        }
 
 
     }
+    public  void checkPermission(){
+        List<UsageStats> queryUsageStats = mUsageStatsManager
+                .queryUsageStats(UsageStatsManager.INTERVAL_DAILY, 0, now);
 
-    public void getSms(){
+        if (queryUsageStats.size() == 0) {
+            Log.i("ERROR", "The user may not allow the access to apps usage. ");
+            Toast.makeText(this,
+                    getString(R.string.explanation_access_to_appusage_is_not_enabled),
+                    Toast.LENGTH_LONG).show();
+            mOpenUsageSettingButton.setVisibility(View.VISIBLE);
+            mCrunchingButton.setVisibility(View.INVISIBLE);
+            mOpenUsageSettingButton.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+                }
+            });
+        }else{
+            mCrunchingButton.setVisibility(View.VISIBLE);
+            mOpenUsageSettingButton.setVisibility(View.GONE);
+        }
+    }
+    public void getSms() {
         Uri uriSms = Uri.parse("content://sms/inbox");
         Cursor cursor = this.getContentResolver().query(uriSms, null, null, null, null);
 
         if (cursor.moveToFirst()) { // must check the result to prevent exception
             do {
                 String msgData = "";
-                for(int idx=0;idx<cursor.getColumnCount();idx++)
-                {
+                for (int idx = 0; idx < cursor.getColumnCount(); idx++) {
                     msgData += " " + cursor.getColumnName(idx) + ":" + cursor.getString(idx);
                     Log.v("SMS => ", msgData);
                 }
@@ -160,14 +177,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public void getNetworkStats(){
+    public void getNetworkStats() {
         long ts = TrafficStats.getTotalRxBytes();
-        Log.v("TOTAL BYTE RECEIVED => ",String.valueOf(ts));
+        Log.v("TOTAL BYTE RECEIVED => ", String.valueOf(ts));
 
     }
 
 
-    public void getBrowserHist()  {
+    public void getBrowserHist() {
         Uri uriCustom = Uri.parse("content://com.android.chrome.browser/bookmarks");
         Cursor mCur = this.getContentResolver().query(uriCustom,
                 Browser.HISTORY_PROJECTION, null, null, null);
@@ -188,42 +205,39 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-
-
     public List<UsageStats> getUsageStatistics(int intervalType) {
         List<String> nameNtime = new ArrayList<String>();
         DateFormat mDateFormat = new SimpleDateFormat();
         long now = System.currentTimeMillis();
 //         Get the app statistics since epoch till current date.
         List<UsageStats> queryUsageStats = mUsageStatsManager
-                .queryUsageStats(intervalType, 0,now);
+                .queryUsageStats(intervalType, 0, now);
         Log.d("SIZE => ", String.valueOf(queryUsageStats.size()));
         for (int i = 0; i < queryUsageStats.size(); i++) {
 
             CustomUsageStats cUsageStats = new CustomUsageStats();
             cUsageStats.usageStats = queryUsageStats.get(i);
             int val = 0;
-            PackageManager packageManager= this.getApplicationContext().getPackageManager();
-            String appName="";
+            PackageManager packageManager = this.getApplicationContext().getPackageManager();
+            String appName = "";
             try {
                 appName = (String) packageManager.getApplicationLabel(packageManager.getApplicationInfo(cUsageStats.usageStats.getPackageName(), PackageManager.GET_META_DATA));
-            }
-            catch (PackageManager.NameNotFoundException e){
+            } catch (PackageManager.NameNotFoundException e) {
                 appName = "";
             }
 
-            Log.d("PACKAGE NAME => ",appName);
-            Log.d("TOTAL TIME => ",String.valueOf(cUsageStats.usageStats.getTotalTimeInForeground()/60000));
+            Log.d("PACKAGE NAME => ", appName);
+            Log.d("TOTAL TIME => ", String.valueOf(cUsageStats.usageStats.getTotalTimeInForeground() / 60000));
 //            Log.d("TYPE => ",);
 //            Log.d("CONTENT => ",String.valueOf(cUsageStats.usageStats.describeContents()));
 //            Log.d("FIRST_TIME STAMP => ",String.valueOf(cUsageStats.usageStats.getFirstTimeStamp()));
-            Log.d("LAST_TIME STAMP => ",String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getLastTimeStamp()))));
-            Log.d("LAST_TIME USED => ",String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getLastTimeUsed()))));
+            Log.d("LAST_TIME STAMP => ", String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getLastTimeStamp()))));
+            Log.d("LAST_TIME USED => ", String.valueOf(mDateFormat.format(new Date(cUsageStats.usageStats.getLastTimeUsed()))));
 //            Log.d("------------------",String.valueOf(val));
-            nameNtime.add(String.valueOf(cUsageStats.usageStats.getPackageName()) +" -> "+String.valueOf(cUsageStats.usageStats.getTotalTimeInForeground()/60000));
+            nameNtime.add(String.valueOf(cUsageStats.usageStats.getPackageName()) + " -> " + String.valueOf(cUsageStats.usageStats.getTotalTimeInForeground() / 60000));
         }
 // }
-//        Log.d("List", String.valueOf(nameNtime));
+        Log.d("List", String.valueOf(nameNtime));
         if (queryUsageStats.size() == 0) {
             Log.i("ERROR", "The user may not allow the access to apps usage. ");
             Toast.makeText(this,
@@ -236,15 +250,19 @@ public class MainActivity extends AppCompatActivity {
                     startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
                 }
             });
+        }else{
+            mCrunchingButton.setVisibility(View.VISIBLE);
+            mOpenUsageSettingButton.setVisibility(View.GONE);
         }
         return queryUsageStats;
     }
+
     void updateAppsList(List<UsageStats> usageStatsList) throws IOException {
         //writing stuff in mobile
 
         File sdCard = Environment.getExternalStorageDirectory();
         DateFormat mDateFormat = new SimpleDateFormat();
-        File directory = new File (sdCard.getAbsolutePath() + "/MyFiles");
+        File directory = new File(sdCard.getAbsolutePath() + "/MyFiles");
         directory.mkdirs();
 
         //Now create the file in the above directory and write the contents into it
@@ -270,7 +288,7 @@ public class MainActivity extends AppCompatActivity {
             customUsageStatsList.add(customUsageStats);
             customUsageStats.use_time = customUsageStats.usageStats.getTotalTimeInForeground() / 60000;
 
-            app_names.add(customUsageStats.usageStats.getPackageName()+ " Total Time => "+customUsageStats.use_time+ " First Time => "+mDateFormat.format(new Date(customUsageStats.usageStats.getFirstTimeStamp())));
+            app_names.add(customUsageStats.usageStats.getPackageName() + " Total Time => " + customUsageStats.use_time + " First Time => " + mDateFormat.format(new Date(customUsageStats.usageStats.getFirstTimeStamp())));
         }
 
 
@@ -282,6 +300,46 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+
+        // ATTENTION: This was auto-generated to implement the App Indexing API.
+        // See https://g.co/AppIndexing/AndroidStudio for more information.
+        client.connect();
+        Action viewAction = Action.newAction(
+                Action.TYPE_VIEW, // TODO: choose an action type.
+                "Main Page", // TODO: Define a title for the content shown.
+                // TODO: If you have web page content that matches this app activity's content,
+                // make sure this auto-generated web page URL is correct.
+                // Otherwise, set the URL to null.
+                Uri.parse("http://host/path"),
+                // TODO: Make sure this auto-generated app URL is correct.
+                Uri.parse("android-app://com.verma.karan.cruncher/http/host/path")
+        );
+        AppIndex.AppIndexApi.start(client, viewAction);
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+
+        // ATTENTION: This was auto-generated to implement the App Indexing API.
+        // See https://g.co/AppIndexing/AndroidStudio for more information.
+        Action viewAction = Action.newAction(
+                Action.TYPE_VIEW, // TODO: choose an action type.
+                "Main Page", // TODO: Define a title for the content shown.
+                // TODO: If you have web page content that matches this app activity's content,
+                // make sure this auto-generated web page URL is correct.
+                // Otherwise, set the URL to null.
+                Uri.parse("http://host/path"),
+                // TODO: Make sure this auto-generated app URL is correct.
+                Uri.parse("android-app://com.verma.karan.cruncher/http/host/path")
+        );
+        AppIndex.AppIndexApi.end(client, viewAction);
+        client.disconnect();
     }
 
     //VisibleForTesting
