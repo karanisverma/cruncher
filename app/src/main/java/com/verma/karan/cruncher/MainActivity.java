@@ -66,7 +66,7 @@ public class MainActivity extends AppCompatActivity {
         mUsageStatsManager = (UsageStatsManager) this
                 .getSystemService("usagestats");
         File sdCard = Environment.getExternalStorageDirectory();
-        final File directory = new File (sdCard.getAbsolutePath() + "/Cruncher1");
+        final File directory = new File (sdCard.getAbsolutePath() + "/Cruncher");
         directory.mkdirs();
         checkPermission();
         mCrunchingButton.setOnClickListener(new View.OnClickListener() {
@@ -78,12 +78,12 @@ public class MainActivity extends AppCompatActivity {
                       storeIt(data,"Network_stats.txt",directory);
                       data = getSms();
                       storeIt(data,"SMS_Log.txt",directory);
-//                    data = getCallDetails();
-//                    storeIt(data,"callLog.txt",directory);
-//                    data= getUseageStats();
-//                    storeIt(data,"appUseageStats.txt",directory);
-//                    data = getBrowserHist();
-//                    storeIt(data,"History.txt",directory);
+                    data = getCallDetails();
+                    storeIt(data,"callLog.txt",directory);
+                    data= getUseageStats();
+                    storeIt(data,"appUseageStats.txt",directory);
+                    data = getBrowserHist();
+                    storeIt(data,"History.txt",directory);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 } catch (IOException e) {
@@ -92,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
 
                 mCrunchingButton.setText("Done!!!");
                 mText.setVisibility(View.VISIBLE);
-                mText.setText("Files have been stored in SD card under /Myfiles Directory");
+                mText.setText("Files have been stored in SD card under Cruncher Directory");
 
             }
         });
